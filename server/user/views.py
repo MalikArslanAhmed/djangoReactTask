@@ -4,7 +4,9 @@ from django.middleware import csrf
 from rest_framework import exceptions as rest_exceptions, response, decorators as rest_decorators, permissions as rest_permissions
 from rest_framework_simplejwt import tokens, views as jwt_views, serializers as jwt_serializers, exceptions as jwt_exceptions
 from user import serializers, models
-
+from rest_framework.response import Response
+from django.conf import settings
+import requests
 
 def get_user_tokens(user):
     refresh = tokens.RefreshToken.for_user(user)
@@ -125,6 +127,22 @@ def user(request):
         user = models.User.objects.get(id=request.user.id)
     except models.User.DoesNotExist:
         return response.Response(status_code=404)
+    # adding logic to get balance from metamask
+    address = '0x974869888659FfCb1660DA19E77fbF03F1b19795'
+    api_key = 'K2X2X3YGC9PNAJCYGKI4KMN4R2CHJX4ZQB'
 
+    try:
+        url = f'https://api.etherscan.io/api?module=account&action=balance&address={address}&tag=latest&apikey={api_key}'
+        response = requests.get(url)
+        data = response.json()
+        if data['status'] == '1':
+            balance = int(data['result']) / 10**18 
+        else:
+            balance = 0.0
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+    #ends
     serializer = serializers.UserSerializer(user)
-    return response.Response(serializer.data)
+    user_data = serializer.data
+    user_data['balance'] = balance
+    return Response(user_data)
